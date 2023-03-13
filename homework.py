@@ -1,26 +1,17 @@
 import logging
-import os
 import sys
 import time
 
+import exceptions
 import requests
 import telegram
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
-load_dotenv()
+env_variables = dotenv_values()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("homework_bot.log"),
-        logging.StreamHandler(stream=sys.stdout)
-    ]
-)
-
-PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+PRACTICUM_TOKEN = env_variables['PRACTICUM_TOKEN']
+TELEGRAM_TOKEN = env_variables['TELEGRAM_TOKEN']
+TELEGRAM_CHAT_ID = env_variables['TELEGRAM_CHAT_ID']
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -32,12 +23,21 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("homework_bot.log"),
+        logging.StreamHandler(stream=sys.stdout)
+    ]
+)
 
 def check_tokens():
     """Проверяет достумны ли переменные окружения."""
     if not all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
         logging.critical('Необходимо указать все переменные окружения')
-        sys.exit()
+        sys.exit('Выполнение программы остановлено, '
+                 'не найдены необходимые переменные окружения')
 
 
 def send_message(bot, message: str):
@@ -57,7 +57,9 @@ def get_api_answer(timestamp: int):
         if response.status_code != 200:
             logging.error(f'Ошибка при запросе к API Practicum: '
                           f'{response.status_code} - {response.text}')
-            raise None
+            raise exceptions.APIRequestError(
+                'Ошибка при запросе к API Practicum'
+            )
         else:
             return response.json()
 
@@ -82,7 +84,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    """Обрабатывае статус ответа."""
+    """Обрабатывает статус ответа."""
     if 'homework_name' not in homework:
         raise KeyError('Ключ "homework_name" не найден в ответе API Practicum')
     homework_name = homework['homework_name']
@@ -100,7 +102,6 @@ def main():
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time()) - RETRY_PERIOD
-    # timestamp = 0
 
     while True:
         try:
