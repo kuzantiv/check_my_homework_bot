@@ -28,7 +28,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("homework_bot.log"),
+        logging.FileHandler('homework_bot.log'),
         logging.StreamHandler(stream=sys.stdout)
     ]
 )
@@ -46,9 +46,9 @@ def send_message(bot: telegram.Bot, message: str) -> None:
     """Отправляет сообщение в телеграм чат о статусе ДЗ."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-        logging.debug(f"Сообщение отправлено в Telegram: {message}")
+        logging.debug(f'Сообщение отправлено в Telegram: {message}')
     except telegram.TelegramError as e:
-        logging.error(f"Ошибка отправки сообщения в Telegram: {e}")
+        logging.error(f'Ошибка отправки сообщения в Telegram: {e}')
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -95,9 +95,9 @@ def parse_status(homework: dict[str, str]) -> str:
     if 'status' not in homework:
         raise KeyError('Ключ "status" не найден в ответе API Practicum')
     if homework['status'] not in HOMEWORK_VERDICTS:
-        logging.error(f"Неожиданный статус работы: {homework['status']}")
-        raise ValueError(f"Неожиданный статус работы: {homework['status']}")
-    verdict = HOMEWORK_VERDICTS[homework['status']]
+        logging.error(f'Неожиданный статус работы: {homework["status"]}')
+        raise ValueError(f'Неожиданный статус работы: {homework["status"]}')
+    verdict = HOMEWORK_VERDICTS[homework["status"]]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
