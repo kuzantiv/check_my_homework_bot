@@ -51,7 +51,8 @@ def deduplicate_messages(func):
         nonlocal last_message
 
         if message == last_message:
-            logging.debug(f"Повторное сообщение не будет отправлено: {message}")
+            logging.debug(f'Повторное сообщение '
+                          f'не будет отправлено: {message}')
         else:
             func(bot, message)
             last_message = message
@@ -135,20 +136,21 @@ def main() -> None:
                 message = parse_status(homework)
                 send_message(bot, message)
             else:
-                logging.debug("Пока новых работ нет")
+                logging.debug('Пока новых работ нет')
 
         except exceptions.HomeworkStatusError as e:
-            message = f"Ошибка получения статуса ДЗ: {e}"
+            message = f'Ошибка получения статуса ДЗ: {e}'
             logging.error(message)
             send_message(bot, message)
 
         except Exception as e:
-            message = f"Неизвестная ошибка: {e}"
+            message = f'Неизвестная ошибка: {e}'
             logging.error(message)
             send_message(bot, message)
 
         finally:
-            logging.info(f"Ожидание {RETRY_PERIOD} секунд до следующего запроса")
+            logging.info(f'Ожидание {RETRY_PERIOD} '
+                         f'секунд до следующего запроса')
             time.sleep(RETRY_PERIOD)
 
 
