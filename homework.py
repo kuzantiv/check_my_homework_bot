@@ -1,14 +1,14 @@
 import logging
 import sys
 import time
-from typing import Optional
+from functools import wraps
 
 import exceptions
 import requests
 import telegram
 from dotenv import dotenv_values
 
-env_variables: dict[str, Optional[str]] = dotenv_values()
+env_variables: dict[str, str | None] = dotenv_values()
 
 PRACTICUM_TOKEN: str = env_variables.get('PRACTICUM_TOKEN') or ''
 TELEGRAM_TOKEN: str = env_variables.get('TELEGRAM_TOKEN') or ''
@@ -42,6 +42,24 @@ def check_tokens() -> None:
                  'не найдены необходимые переменные окружения')
 
 
+def deduplicate_messages(func):
+    """Предотвращает отправку повторяющихся сообщений в Telegram."""
+    last_message = None
+
+    @wraps(func)
+    def wrapper(bot: telegram.Bot, message: str) -> None:
+        nonlocal last_message
+
+        if message == last_message:
+            logging.debug(f"Повторное сообщение не будет отправлено: {message}")
+        else:
+            func(bot, message)
+            last_message = message
+
+    return wrapper
+
+
+@deduplicate_messages
 def send_message(bot: telegram.Bot, message: str) -> None:
     """Отправляет сообщение в телеграм чат о статусе ДЗ."""
     try:
@@ -55,7 +73,10 @@ def get_api_answer(timestamp: int) -> dict:
     """Делает запрос к API и обрабатывает ошибки."""
     payload: dict[str, int] = {'from_date': timestamp}
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
+        response = requests.get(ENDPOINT,
+                                headers=HEADERS,
+                                params=payload,
+                                timeout=5)
         if response.status_code != 200:
             logging.error(f'Ошибка при запросе к API Practicum: '
                           f'{response.status_code} - {response.text}')
@@ -72,7 +93,7 @@ def get_api_answer(timestamp: int) -> dict:
 
 
 def check_response(response: dict[str, list[dict[str, str]]]
-                   ) -> Optional[dict[str, str]]:
+                   ) -> dict[str, str] | None:
     """Обрабатывает ответ запроса."""
     if not isinstance(response, dict):
         raise TypeError('Ответ API Practicum не является словарем')
@@ -108,16 +129,27 @@ def main() -> None:
     timestamp: int = int(time.time()) - RETRY_PERIOD
     while True:
         try:
-            response: Optional[dict] = get_api_answer(timestamp)
-            if response is not None:
-                homework: Optional[dict] = check_response(response)
-                if homework is not None:
-                    message: Optional[str] = parse_status(homework)
-                    if message is not None:
-                        send_message(bot, message)
-        except Exception as error:
-            logging.error(f'Сбой в работе программы: {error}')
-        time.sleep(RETRY_PERIOD)
+            response = get_api_answer(timestamp)
+            homework = check_response(response)
+            if homework:
+                message = parse_status(homework)
+                send_message(bot, message)
+            else:
+                logging.debug("Пока новых работ нет")
+
+        except exceptions.HomeworkStatusError as e:
+            message = f"Ошибка получения статуса ДЗ: {e}"
+            logging.error(message)
+            send_message(bot, message)
+
+        except Exception as e:
+            message = f"Неизвестная ошибка: {e}"
+            logging.error(message)
+            send_message(bot, message)
+
+        finally:
+            logging.info(f"Ожидание {RETRY_PERIOD} секунд до следующего запроса")
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
